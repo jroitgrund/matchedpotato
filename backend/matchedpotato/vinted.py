@@ -1,15 +1,17 @@
 import asyncio
+import itertools
 import json
+import re
 from datetime import datetime
-from typing import cast
+from typing import AsyncGenerator, Iterable, cast
 
+import structlog
 from bs4 import BeautifulSoup, Tag
 from pydantic import BaseModel
 
 from matchedpotato.colours import get_difference
 
-NUM_PAGES = 10
-PAGES_PER_MINUTE = 10
+log = structlog.stdlib.get_logger()
 
 VINTED_COLORS = {
     1: "#000000",
@@ -69,12 +71,7 @@ class VintedResult(BaseModel):
         )
 
 
-async def _get_results(time: int, color_id: int, page_num: int) -> list[VintedResult]:
-    url = (
-        "https://www.vinted.fr/vetements?catalog[]=2050&catalog[]=4"
-        f"&color_id[]={color_id}&page={page_num}&time={time}"
-    )
-    html = await get_url(url)
+def _get_page_items(html: str) -> list[VintedResult]:
     soup = BeautifulSoup(html, "html.parser")
     script_tag = cast(
         Tag, soup.find(attrs={"data-js-react-on-rails-store": "MainStore"})
@@ -91,31 +88,69 @@ async def _get_results(time: int, color_id: int, page_num: int) -> list[VintedRe
     results = [
         VintedResult.from_page_item(_VintedPageItem(**item))
         for item in items.values()
-        if "photo" in item
+        if "photo" in item and item["photo"] is not None
     ]
     return results
 
 
-async def get_url(url: str):
-    proc = await asyncio.create_subprocess_exec(
-        "curl", url, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
-    )
+async def get_url(url: str) -> str:
+    while True:
+        proc = await asyncio.create_subprocess_exec(
+            "curl",
+            "-v",
+            url,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
 
-    stdout, _ = await proc.communicate()
+        b_stdout, b_stderr = await proc.communicate()
 
-    return stdout
+        stdout, stderr = (b_stdout.decode("utf-8"), b_stderr.decode("utf-8"))
+
+        if stdout == "Request rate limit exceeded":
+            match = re.search(r"retry-after: ([\d]+)", stderr)
+            if match is None:
+                raise RuntimeError()
+            retry_after = int(match.group(1))
+            log.info("Retrying URL", url=url, retry_after=retry_after)
+            await asyncio.sleep(retry_after)
+        else:
+            return stdout
 
 
-async def get_vinted_results(color: str) -> list[VintedResult]:
+async def get_urls(urls: Iterable[str], queue: asyncio.Queue[str]) -> None:
+    try:
+        for url in urls:
+            await queue.put(await get_url(url))
+    except asyncio.CancelledError:
+        return
+
+
+async def get_vinted_results(
+    color: str,
+) -> AsyncGenerator[list[VintedResult], None]:
     closest_vinted_color_id = min(
         VINTED_COLORS.items(), key=lambda item: get_difference(color, item[1])
     )[0]
     time = int(datetime.now().timestamp())
-    results_pages: list[list[VintedResult]] = await asyncio.gather(
-        *(
-            _get_results(time, closest_vinted_color_id, page_num)
-            for page_num in range(1, NUM_PAGES + 1)
+    queue: asyncio.Queue[str] = asyncio.Queue()
+    log.info(
+        "Base URL:",
+        url="https://www.vinted.fr/vetements?catalog[]=2050&catalog[]=4"
+        f"&color_id[]={closest_vinted_color_id}",
+    )
+    get_urls_task = asyncio.create_task(
+        get_urls(
+            (
+                "https://www.vinted.fr/vetements?catalog[]=2050&catalog[]=4"
+                f"&color_id[]={closest_vinted_color_id}&page={page_num}&time={time}"
+                for page_num in itertools.count(1)
+            ),
+            queue,
         )
     )
-
-    return [result for results_page in results_pages for result in results_page]
+    try:
+        while not queue.empty() or not get_urls_task.done():
+            yield _get_page_items(await queue.get())
+    finally:
+        get_urls_task.cancel()
