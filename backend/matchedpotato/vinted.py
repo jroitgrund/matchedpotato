@@ -77,6 +77,7 @@ def _get_page_items(html: str) -> list[VintedResult]:
         Tag, soup.find(attrs={"data-js-react-on-rails-store": "MainStore"})
     )
     if not isinstance(script_tag, Tag):
+        log.error("Bad HTML", html=html)
         raise RuntimeError()
 
     json_contents = script_tag.string
@@ -97,6 +98,7 @@ async def get_url(url: str) -> str:
     while True:
         proc = await asyncio.create_subprocess_exec(
             "curl",
+            "-s",
             "-v",
             url,
             stdout=asyncio.subprocess.PIPE,
@@ -114,6 +116,9 @@ async def get_url(url: str) -> str:
             retry_after = int(match.group(1))
             log.info("Retrying URL", url=url, retry_after=retry_after)
             await asyncio.sleep(retry_after)
+        elif stdout == "error code: 1020":
+            log.info("stderr", stderr=stderr)
+            return stdout
         else:
             return stdout
 
