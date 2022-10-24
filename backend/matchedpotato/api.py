@@ -1,4 +1,5 @@
 import logging
+import os
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -101,7 +102,7 @@ if __name__ == "__main__":
     uvicorn.run(
         app,
         host="0.0.0.0",
-        port=8000,
+        port=int(os.environ.get("PORT")),
         log_config={
             "version": 1,
             "disable_existing_loggers": False,
