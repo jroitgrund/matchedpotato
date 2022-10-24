@@ -102,7 +102,7 @@ if __name__ == "__main__":
     uvicorn.run(
         app,
         host="0.0.0.0",
-        port=int(os.environ.get("PORT")),
+        port=int(os.environ.get("PORT") or 8000),
         log_config={
             "version": 1,
             "disable_existing_loggers": False,
