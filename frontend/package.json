@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "generate": "cd src/client && openapi-generator-cli generate -i http://localhost:8000/openapi.json -g typescript-fetch"
+    "generate": "cd src/client && openapi-generator-cli generate -i http://localhost:8080/openapi.json -g typescript-fetch"
   },
   "dependencies": {
     "@heroicons/react": "^2.0.12",
