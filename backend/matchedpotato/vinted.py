@@ -1,15 +1,17 @@
 import asyncio
 import itertools
 import json
-import re
 from datetime import datetime
 from typing import AsyncGenerator, Iterable, cast
 
+import cloudscraper
 import structlog
 from bs4 import BeautifulSoup, Tag
 from pydantic import BaseModel
 
 from matchedpotato.colours import get_difference
+
+scraper = cloudscraper.create_scraper()
 
 log = structlog.stdlib.get_logger()
 
@@ -96,31 +98,17 @@ def _get_page_items(html: str) -> list[VintedResult]:
 
 async def get_url(url: str) -> str:
     while True:
-        proc = await asyncio.create_subprocess_exec(
-            "curl",
-            "-s",
-            "-v",
-            url,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-        )
-
-        b_stdout, b_stderr = await proc.communicate()
-
-        stdout, stderr = (b_stdout.decode("utf-8"), b_stderr.decode("utf-8"))
-
-        if stdout == "Request rate limit exceeded":
-            match = re.search(r"retry-after: ([\d]+)", stderr)
-            if match is None:
-                raise RuntimeError()
-            retry_after = int(match.group(1))
-            log.info("Retrying URL", url=url, retry_after=retry_after)
+        response = await asyncio.to_thread(lambda: scraper.get(url))
+        if response.text == "Request rate limit exceeded":
+            retry_after = int(response.headers["retry-after"])
+            log.info(
+                "Retrying URL",
+                url=url,
+                retry_after=int(response.headers["retry-after"]),
+            )
             await asyncio.sleep(retry_after)
-        elif stdout == "error code: 1020":
-            log.info("stderr", stderr=stderr)
-            return stdout
         else:
-            return stdout
+            return response.text
 
 
 async def get_urls(urls: Iterable[str], queue: asyncio.Queue[str]) -> None:
