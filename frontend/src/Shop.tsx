@@ -68,7 +68,12 @@ export const Shop: React.FC<Record<string, never>> = React.memo(
       <FiltersSelector onSave={onSaveFilters} />
     ) : (
       <div className="flex-1 flex flex-col px-1.5">
-        <div className="flex justify-end mb-5">
+        <div className="flex justify-between items-center mb-5">
+          <div>
+            {results.results.length > 0 && !results.done ? (
+              <Loading spin={false} className="h-10" />
+            ) : null}
+          </div>
           <button
             onClick={openFilters}
             className="border border-black font-medium p-4 rounded-xl leading-none flex gap-2"
@@ -79,7 +84,7 @@ export const Shop: React.FC<Record<string, never>> = React.memo(
         </div>
         {results.results.length === 0 ? (
           <div className="flex-1 flex items-center justify-center">
-            <Loading />
+            <Loading spin={true} />
           </div>
         ) : null}
         <div className="flex flex-wrap items-start">
