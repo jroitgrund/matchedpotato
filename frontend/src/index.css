@@ -3,10 +3,18 @@
 @tailwind utilities;
 
 html,
-body,
+body {
+  height: 100%;
+  width: 100%;
+  @apply bg-primary/5;
+}
+
 #root {
   height: 100%;
   width: 100%;
+  max-width: 640px;
+  margin: 0 auto;
+  background-color: white;
 }
 
 .custom-gradient {
