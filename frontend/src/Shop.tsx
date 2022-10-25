@@ -3,7 +3,7 @@ import { useParams } from "react-router-dom";
 import { useInterval } from "usehooks-ts";
 
 import { api } from "./api";
-import { ItemsResult } from "./client";
+import { Garment, ItemsResult } from "./client";
 
 export const Shop: React.FC<Record<string, never>> = React.memo(
   function Shop() {
@@ -19,7 +19,11 @@ export const Shop: React.FC<Record<string, never>> = React.memo(
       (async () => {
         setRequestId(
           await (
-            await api.searchApiSearchPost({ searchRequest: { color: color } })
+            await api.searchApiSearchPost({
+              searchRequest: {
+                color: color,
+              },
+            })
           ).requestId
         );
       })();

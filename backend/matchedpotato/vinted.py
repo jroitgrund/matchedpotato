@@ -1,13 +1,15 @@
 import asyncio
 import itertools
 import json
+import re
 from datetime import datetime
-from typing import AsyncGenerator, Iterable, cast
+from enum import Enum
+from typing import AsyncGenerator, Iterable, Optional, cast
 
 import cloudscraper
 import structlog
 from bs4 import BeautifulSoup, Tag
-from pydantic import BaseModel
+from pydantic import BaseModel, ConstrainedStr
 
 from matchedpotato.colours import get_difference
 
@@ -15,6 +17,98 @@ scraper = cloudscraper.create_scraper()
 sem = asyncio.Semaphore(1)
 
 log = structlog.stdlib.get_logger()
+
+
+class Garment(str, Enum):
+    CLOTHES = "clothes"
+    SHOES = "shoes"
+
+
+class Gender(str, Enum):
+    WOMEN = "women"
+    MEN = "men"
+
+
+class Size(str, Enum):
+    XXXS = "XXXS"
+    XXS = "XXS"
+    XS = "XS"
+    S = "S"
+    M = "M"
+    L = "L"
+    XL = "XL"
+    XXL = "XXL"
+    XXXL = "XXXL"
+    FOURXL = "FOURXL"
+    FIVEXL = "FIVEXL"
+    SIXXL = "SIXXL"
+    SEVENXL = "SEVENXL"
+    EIGHTXL = "EIGHTXL"
+    NINEXL = "NINEXL"
+
+
+VINTED_GENDERS_CLOTHES = {Gender.MEN: [2050], Gender.WOMEN: [4]}
+VINTED_GENDERS_SHOES = {Gender.MEN: [1231], Gender.WOMEN: [16]}
+VINTED_SIZES: dict[Size, list[int]] = {
+    Size.XXXS: [1226],
+    Size.XXS: [102],
+    Size.XS: [2, 206],
+    Size.S: [3, 207],
+    Size.M: [4, 208],
+    Size.L: [5, 209],
+    Size.XL: [6, 210],
+    Size.XXL: [7, 211],
+    Size.XXXL: [310, 212],
+    Size.FOURXL: [311, 308],
+    Size.FIVEXL: [312, 309],
+    Size.SIXXL: [1227, 1192],
+    Size.SEVENXL: [1228, 1193],
+    Size.EIGHTXL: [1229, 1194],
+    Size.NINEXL: [1230],
+}
+VINTED_SHOE_SIZES: dict[float, list[int]] = {
+    35: [55],
+    35.5: [1195],
+    36: [56],
+    36.5: [1196],
+    37: [57],
+    37.5: [1197],
+    38: [58, 776],
+    38.5: [1198],
+    39: [59, 778],
+    39.5: [1199],
+    40: [60, 780],
+    40.5: [1200],
+    41: [61, 782],
+    41.5: [1201],
+    42: [62, 784],
+    42.5: [785],
+    43: [63, 786],
+    43.5: [787],
+    44: [788],
+    44.5: [789],
+    45: [790],
+    45.5: [791],
+    46: [792],
+    47: [792],
+    48: [1190],
+    49: [1191],
+}
+
+
+class Color(ConstrainedStr):
+    regex = re.compile(r"^\#[a-fA-F0-9]{6}$")
+
+
+class SearchRequest(BaseModel):
+    color: ConstrainedStr
+    garment: list[Garment] = list(Garment)
+    gender: list[Gender] = list(Gender)
+    size: list[Size] = list(Size)
+    shoeSizes: list[float] = list(VINTED_SHOE_SIZES.keys())
+    priceMin: Optional[int]
+    priceMax: Optional[int]
+
 
 VINTED_COLORS = {
     1: "#000000",
@@ -97,10 +191,12 @@ def _get_page_items(html: str) -> list[VintedResult]:
     return results
 
 
-async def get_url(url: str) -> str:
+async def get_results_page(params: dict[str, str | int | list[str] | list[int]]) -> str:
     async with sem:
         while True:
-            response = await asyncio.to_thread(lambda: scraper.get(url))
+            response = await asyncio.to_thread(
+                lambda: scraper.get("https://www.vinted.fr/vetements", params=params)
+            )
             if response.text == "Request rate limit exceeded":
                 retry_after = int(response.headers["retry-after"])
                 await asyncio.sleep(retry_after)
@@ -108,27 +204,30 @@ async def get_url(url: str) -> str:
                 return response.text
 
 
-async def get_urls(urls: Iterable[str], queue: asyncio.Queue[str]) -> None:
+async def get_results(
+    params_iter: Iterable[dict[str, str | int | list[str] | list[int]]],
+    queue: asyncio.Queue[str],
+) -> None:
     try:
-        for url in urls:
-            await queue.put(await get_url(url))
+        for params in params_iter:
+            await queue.put(await get_results_page(params))
     except asyncio.CancelledError:
         return
 
 
 async def get_vinted_results(
-    color: str,
+    searchRequest: SearchRequest,
 ) -> AsyncGenerator[list[VintedResult], None]:
     closest_vinted_color_id = min(
-        VINTED_COLORS.items(), key=lambda item: get_difference(color, item[1])
+        VINTED_COLORS.items(),
+        key=lambda item: get_difference(searchRequest.color, item[1]),
     )[0]
     time = int(datetime.now().timestamp())
     queue: asyncio.Queue[str] = asyncio.Queue()
     get_urls_task = asyncio.create_task(
-        get_urls(
+        get_results(
             (
-                "https://www.vinted.fr/vetements?catalog[]=2050&catalog[]=4"
-                f"&color_id[]={closest_vinted_color_id}&page={page_num}&time={time}"
+                vinted_params(searchRequest, closest_vinted_color_id, page_num, time)
                 for page_num in itertools.count(1)
             ),
             queue,
@@ -150,3 +249,46 @@ async def get_vinted_results(
                 raise RuntimeError("Early return from get_urls")
     finally:
         get_urls_task.cancel()
+
+
+def vinted_params(
+    searchRequest: SearchRequest, closest_vinted_color_id: int, page_num: int, time: int
+) -> dict[str, str | int | list[str] | list[int]]:
+    return {
+        "catalog[]": (
+            [
+                vinted_gender
+                for gender in searchRequest.gender
+                for vinted_gender in VINTED_GENDERS_CLOTHES[gender]
+            ]
+            if Garment.CLOTHES in searchRequest.garment
+            else []
+        )
+        + (
+            [
+                vinted_gender
+                for gender in searchRequest.gender
+                for vinted_gender in VINTED_GENDERS_SHOES[gender]
+            ]
+            if Garment.SHOES in searchRequest.garment
+            else []
+        ),
+        "size_id[]": [
+            vinted_size
+            for size in searchRequest.size
+            for vinted_size in VINTED_SIZES[size]
+        ]
+        + [90, 97]
+        + [
+            vinted_size
+            for size in searchRequest.shoeSizes or []
+            for vinted_size in VINTED_SHOE_SIZES[size]
+        ]
+        + [94, 99],
+        "price_from": searchRequest.priceMin or 0,
+        "price_to": searchRequest.priceMax or 2147483647,
+        "color_id[]": [closest_vinted_color_id],
+        "page": page_num,
+        "time": time,
+        "currency": "EUR",
+    }
