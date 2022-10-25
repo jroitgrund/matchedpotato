@@ -3,10 +3,11 @@
 @tailwind utilities;
 
 html {
+  height: 100%;
 }
 
 body {
-  min-height: 100vh;
+  min-height: 100%;
   width: 100%;
   display: flex;
   @apply bg-primary/5;

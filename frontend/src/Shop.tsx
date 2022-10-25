@@ -4,7 +4,7 @@ import { useParams } from "react-router-dom";
 import { useBoolean, useInterval } from "usehooks-ts";
 
 import { api } from "./api";
-import { ItemsResult } from "./client";
+import { ItemsResult, VintedResult } from "./client";
 import { FiltersSelector } from "./Filters";
 import { Loading } from "./Loading";
 import { Filters, useStore } from "./store";
