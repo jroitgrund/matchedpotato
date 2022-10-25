@@ -1,4 +1,3 @@
-import React, { ChangeEvent, useCallback, useState } from "react";
 import {
   createBrowserRouter,
   RouterProvider,
@@ -7,6 +6,7 @@ import {
 import { Shop } from "./Shop";
 import { PixelChooser } from "./PixelChooser";
 import { Onboarding } from "./Onboarding";
+import React from "react";
 
 const router = createBrowserRouter([
   {

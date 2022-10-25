@@ -3,9 +3,10 @@ import colorNamer from "color-namer";
 import React, { useRef, useState, useCallback, useEffect } from "react";
 import { useStore } from "./store";
 import { useNavigate, Navigate } from "react-router-dom";
+import { checkNotNull } from "./utils";
 
 export const PixelChooser: React.FC<Record<string, never>> = React.memo(
-  function PixelChooser({}) {
+  function PixelChooser() {
     const imageDataUrl = useStore((s) => s.imageData);
 
     const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -34,13 +35,13 @@ export const PixelChooser: React.FC<Record<string, never>> = React.memo(
 
     useEffect(() => {
       if (canvasRef.current != null && imageDataUrl != null) {
-        const ctx = canvasRef.current.getContext("2d")!!;
+        const ctx = checkNotNull(canvasRef.current.getContext("2d"));
         const img = new Image();
         img.onload = () => {
           ctx.drawImage(img, 0, 0);
           const data = ctx.getImageData(
-            Math.round(canvasRef.current!!.clientWidth / 2),
-            Math.round(canvasRef.current!!.clientHeight / 2),
+            Math.round(checkNotNull(canvasRef.current).clientWidth / 2),
+            Math.round(checkNotNull(canvasRef.current).clientHeight / 2),
             1,
             1
           ).data;
@@ -55,9 +56,9 @@ export const PixelChooser: React.FC<Record<string, never>> = React.memo(
         const rect = (e.target as any).getBoundingClientRect();
         const x = Math.round(e.clientX - rect.left);
         const y = Math.round(e.clientY - rect.top);
-        const data = canvasRef
-          .current!!.getContext("2d")!!
-          .getImageData(x, y, 1, 1).data;
+        const data = checkNotNull(
+          canvasRef.current?.getContext("2d")
+        ).getImageData(x, y, 1, 1).data;
         setColorFromData(data);
       },
       []

@@ -48,7 +48,7 @@ export const Onboarding: React.FC<Record<string, never>> = React.memo(
                 <div className="flex text-primary border border-primary rounded-full justify-center items-center h-6 aspect-square">
                   2
                 </div>
-                <div>Select the color you're looking for</div>
+                <div>Select the color you&apos;re looking for</div>
               </div>
               <div className="flex gap-4 items-start">
                 <div className="flex text-primary border border-primary rounded-full justify-center items-center h-6 aspect-square">

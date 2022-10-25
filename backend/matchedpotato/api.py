@@ -1,5 +1,6 @@
 import logging
 import os
+from datetime import datetime
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -54,9 +55,11 @@ class ItemsResult(BaseModel):
     results: list[VintedResult]
 
 
+log = structlog.stdlib.get_logger()
 app = FastAPI()
 api = APIRouter(prefix="/api")
 results: dict[UUID, ItemsResult] = {}
+pings: dict[UUID, datetime] = {}
 
 
 @api.get(
@@ -69,12 +72,14 @@ async def search(
 ) -> RequestIdResult:
     request_id = uuid4()
     results[request_id] = ItemsResult(results=[], done=False)
+    pings[request_id] = datetime.now()
     background_tasks.add_task(poll_vinted, request_id, color)
     return RequestIdResult(request_id=request_id)
 
 
 @api.get("/get-results/{request_id}", response_model=ItemsResult)
 async def get_results(request_id: UUID) -> ItemsResult:
+    pings[request_id] = datetime.now()
     result = results[request_id]
     if result.done:
         del results[request_id]
@@ -87,11 +92,23 @@ async def custom_404_handler(_: Any, __: Any) -> FileResponse:
 
 
 async def poll_vinted(request_id: UUID, color: str) -> None:
-    async for new_results in get_matching_vinted_results(color):
+    gen = get_matching_vinted_results(color)
+    try:
+        async for new_results in gen:
+            if (datetime.now() - pings[request_id]).seconds > 6:
+                del pings[request_id]
+                del results[request_id]
+                return
+            results[request_id] = ItemsResult(
+                results=[result for _score, result in new_results], done=False
+            )
         results[request_id] = ItemsResult(
-            results=[result for _score, result in new_results], done=False
+            results=results[request_id].results, done=True
         )
-    results[request_id] = ItemsResult(results=results[request_id].results, done=True)
+    except Exception:
+        log.exception("Exception while polling for vinted results")
+    finally:
+        gen.aclose()
 
 
 app.include_router(api)

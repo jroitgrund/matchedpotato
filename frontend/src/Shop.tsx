@@ -18,7 +18,7 @@ export const Shop: React.FC<Record<string, never>> = React.memo(
       (async () => {
         setRequestId(
           await (
-            await api.searchApiSearchColorGet({ color: color!! })
+            await api.searchApiSearchColorGet({ color: color })
           ).requestId
         );
       })();

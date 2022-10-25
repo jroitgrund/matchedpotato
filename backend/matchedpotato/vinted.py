@@ -12,6 +12,7 @@ from pydantic import BaseModel
 from matchedpotato.colours import get_difference
 
 scraper = cloudscraper.create_scraper()
+sem = asyncio.Semaphore(1)
 
 log = structlog.stdlib.get_logger()
 
@@ -97,18 +98,14 @@ def _get_page_items(html: str) -> list[VintedResult]:
 
 
 async def get_url(url: str) -> str:
-    while True:
-        response = await asyncio.to_thread(lambda: scraper.get(url))
-        if response.text == "Request rate limit exceeded":
-            retry_after = int(response.headers["retry-after"])
-            log.info(
-                "Retrying URL",
-                url=url,
-                retry_after=int(response.headers["retry-after"]),
-            )
-            await asyncio.sleep(retry_after)
-        else:
-            return response.text
+    async with sem:
+        while True:
+            response = await asyncio.to_thread(lambda: scraper.get(url))
+            if response.text == "Request rate limit exceeded":
+                retry_after = int(response.headers["retry-after"])
+                await asyncio.sleep(retry_after)
+            else:
+                return response.text
 
 
 async def get_urls(urls: Iterable[str], queue: asyncio.Queue[str]) -> None:
@@ -127,11 +124,6 @@ async def get_vinted_results(
     )[0]
     time = int(datetime.now().timestamp())
     queue: asyncio.Queue[str] = asyncio.Queue()
-    log.info(
-        "Base URL:",
-        url="https://www.vinted.fr/vetements?catalog[]=2050&catalog[]=4"
-        f"&color_id[]={closest_vinted_color_id}",
-    )
     get_urls_task = asyncio.create_task(
         get_urls(
             (
@@ -143,7 +135,18 @@ async def get_vinted_results(
         )
     )
     try:
-        while not queue.empty() or not get_urls_task.done():
-            yield _get_page_items(await queue.get())
+        while True:
+            get_queue = asyncio.create_task(queue.get())
+            tasks: list[asyncio.Task] = [get_queue, get_urls_task]
+            done, _pending = await asyncio.wait(
+                tasks, return_when=asyncio.FIRST_COMPLETED
+            )
+            if get_queue in done:
+                yield _get_page_items(await queue.get())
+            if get_urls_task in done:
+                exception = get_urls_task.exception()
+                if exception is not None:
+                    raise exception
+                raise RuntimeError("Early return from get_urls")
     finally:
         get_urls_task.cancel()
