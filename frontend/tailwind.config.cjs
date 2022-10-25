@@ -6,6 +6,8 @@ module.exports = {
       colors: {
         primary: "#8370FF",
         muted: "#6C6C6C",
+        border: "#DFDFDF",
+        warning: "#E54848",
       },
       lineHeight: {
         3.5: "0.875rem",

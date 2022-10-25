@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { useInterval } from "usehooks-ts";
 
-const FILLS = [
+export const FILLS = [
   "fill-[#5abb97aa]",
   "fill-[#000d809b]",
   "fill-[#bc81d8ed]",

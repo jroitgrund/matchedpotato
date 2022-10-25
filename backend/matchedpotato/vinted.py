@@ -9,7 +9,7 @@ from typing import AsyncGenerator, Iterable, Optional, cast
 import cloudscraper
 import structlog
 from bs4 import BeautifulSoup, Tag
-from pydantic import BaseModel, ConstrainedStr
+from pydantic import BaseModel, ConstrainedStr, ValidationError
 
 from matchedpotato.colours import get_difference
 
@@ -150,6 +150,16 @@ class _VintedPageItemPhoto(BaseModel):
 class _VintedPageItem(BaseModel):
     url: str
     photo: _VintedPageItemPhoto
+    price: str
+    currency: str
+    size_title: str
+
+    @classmethod
+    def safe_init(cls, **kwargs: dict) -> Optional["_VintedPageItem"]:
+        try:
+            return _VintedPageItem(**kwargs)
+        except ValidationError:
+            return None
 
 
 class VintedResult(BaseModel):
@@ -157,6 +167,8 @@ class VintedResult(BaseModel):
     thumbnail_url: str
     dominant_color: str
     dominant_color_opaque: str
+    price: str
+    size: str
 
     @classmethod
     def from_page_item(cls, item: _VintedPageItem) -> "VintedResult":
@@ -165,6 +177,8 @@ class VintedResult(BaseModel):
             thumbnail_url=item.photo.url,
             dominant_color=item.photo.dominant_color,
             dominant_color_opaque=item.photo.dominant_color_opaque,
+            price=f"{item.price} {item.currency}",
+            size=item.size_title,
         )
 
 
@@ -184,9 +198,9 @@ def _get_page_items(html: str) -> list[VintedResult]:
     data = json.loads(json_contents)
     items: dict[str, dict] = data["items"]["catalogItems"]["byId"]
     results = [
-        VintedResult.from_page_item(_VintedPageItem(**item))
-        for item in items.values()
-        if "photo" in item and item["photo"] is not None
+        VintedResult.from_page_item(item)
+        for item in (_VintedPageItem.safe_init(**item) for item in items.values())
+        if item is not None
     ]
     return results
 
