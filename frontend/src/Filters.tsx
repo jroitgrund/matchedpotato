@@ -117,8 +117,6 @@ export const FiltersSelector: React.FC<FiltersProps> = React.memo(
       [onSave]
     );
 
-    console.log(getValues());
-
     return (
       <form
         className="bg-white flex-1 flex flex-col p-5 justify-between"
