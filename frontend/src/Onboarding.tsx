@@ -1,7 +1,7 @@
 import { CameraIcon, PaperClipIcon } from "@heroicons/react/24/solid";
 import React, { ChangeEvent, useCallback } from "react";
-import { Logo } from "./Logo";
 import { useNavigate } from "react-router-dom";
+
 import { useStore } from "./store";
 
 export const Onboarding: React.FC<Record<string, never>> = React.memo(
@@ -21,53 +21,61 @@ export const Onboarding: React.FC<Record<string, never>> = React.memo(
     );
 
     return (
-      <div className="h-full w-full flex p-5">
+      <div className="flex-1 flex px-3.5">
         <div className="flex flex-col flex-1 justify-between">
           <div className="flex flex-col">
-            <div className="flex justify-around">
-              <Logo />
-            </div>
-            <div className="uppercase font-bold text-4xl mt-10">
+            <div className="uppercase font-bold text-2xl leading-none mb-9">
               Matched Potato
             </div>
-            <div className="mt-4 font-medium">
+            <div className="text-lg leading-none mb-11 font-medium">
               Find the perfect{" "}
-              <span className="text-transparent bg-clip-text bg-gradient-to-r custom-gradient">
+              <span className="custom-gradient text-transparent bg-clip-text bg-gradient-to-r">
                 color
               </span>{" "}
               for your next outfit
             </div>
-            <div className="mt-8 flex flex-col gap-4">
-              <div className="flex gap-4 items-start">
-                <div className="flex text-primary border border-primary rounded-full justify-center items-center h-6 aspect-square">
+            <div className="grid grid-flow-col grid-cols-[auto_1fr] grid-rows-3 gap-x-7 gap-y-3">
+              <div className=" justify-center items-center justify-items-center">
+                <div className="text-primary border-primary flex items-center justify-center leading-tight border rounded-full h-6 aspect-square">
                   1
                 </div>
-                <div>Take or upload a picture</div>
               </div>
-              <div className="flex gap-4 items-start">
-                <div className="flex text-primary border border-primary rounded-full justify-center items-center h-6 aspect-square">
+              <div className="">
+                <div className="text-primary border-primary flex items-center justify-center leading-tight border rounded-full h-6 aspect-square">
                   2
                 </div>
-                <div>Select the color you&apos;re looking for</div>
               </div>
-              <div className="flex gap-4 items-start">
-                <div className="flex text-primary border border-primary rounded-full justify-center items-center h-6 aspect-square">
+              <div className="">
+                <div className="text-primary border-primary flex items-center justify-center leading-tight border rounded-full h-6 aspect-square">
                   3
                 </div>
-                <div>Browse vinted.com results and find the perfect match</div>
+              </div>
+              <div className="">
+                <div className="leading-tight">Take or upload a picture</div>
+              </div>
+              <div className="">
+                <div className="leading-tight">
+                  Select the color you&apos;re looking for
+                </div>
+              </div>
+              <div className="">
+                <div className="leading-tight">
+                  Browse vinted.com results and find the perfect match
+                </div>
               </div>
             </div>
           </div>
-          <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-4 mb-6">
             <label
               htmlFor="take-picture"
-              className="flex gap-2 bg-primary p-6 rounded-full text-white justify-center items-center"
+              className="bg-primary flex gap-3.5 p-2 rounded-full text-white font-medium justify-center items-center"
             >
               <input
                 type="file"
                 id="take-picture"
                 className="hidden"
                 accept="image/*"
+                capture="environment"
                 onChange={usePicture}
               />
               <div>Shoot your color</div>
@@ -75,14 +83,13 @@ export const Onboarding: React.FC<Record<string, never>> = React.memo(
             </label>
             <label
               htmlFor="import-picture"
-              className="flex gap-2 bg-primary p-6 rounded-full text-white justify-center items-center"
+              className="bg-primary flex gap-3.5 p-2 rounded-full text-white font-medium justify-center items-center"
             >
               <input
                 type="file"
                 id="import-picture"
                 className="hidden"
                 accept="image/*"
-                capture="environment"
                 onChange={usePicture}
               />
               <div>Import picture</div> <PaperClipIcon className="block h-6" />

@@ -1,8 +1,11 @@
 import { ShoppingBagIcon } from "@heroicons/react/24/solid";
+import { useGesture } from "@use-gesture/react";
 import colorNamer from "color-namer";
-import React, { useRef, useState, useCallback, useEffect } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import { Navigate, useNavigate } from "react-router-dom";
+import { useElementSize } from "usehooks-ts";
+
 import { useStore } from "./store";
-import { useNavigate, Navigate } from "react-router-dom";
 import { checkNotNull } from "./utils";
 
 export const PixelChooser: React.FC<Record<string, never>> = React.memo(
@@ -20,76 +23,118 @@ export const PixelChooser: React.FC<Record<string, never>> = React.memo(
         URL.revokeObjectURL(imageDataUrl);
       }
       navigate(`/shop/${color.substring(1)}`);
-    }, [color, imageDataUrl]);
+    }, [color, imageDataUrl, navigate]);
 
-    const setColorFromData = useCallback(
-      (data: Uint8ClampedArray) => {
-        setColor(
-          `#${`0${data[0].toString(16)}`.slice(-2)}${`0${data[1].toString(
-            16
-          )}`.slice(-2)}${`0${data[2].toString(16)}`.slice(-2)}`
-        );
-      },
-      [setColor]
-    );
+    const [scale, setScale] = useState(1);
+
+    const [{ xOffset, yOffset }, setOffset] = useState({
+      xOffset: 0,
+      yOffset: 0,
+    });
+
+    const img = useRef(new Image());
+    const [loaded, setLoaded] = useState(false);
 
     useEffect(() => {
-      if (canvasRef.current != null && imageDataUrl != null) {
-        const ctx = checkNotNull(canvasRef.current.getContext("2d"));
-        const img = new Image();
-        img.onload = () => {
-          ctx.drawImage(img, 0, 0);
-          const data = ctx.getImageData(
-            Math.round(checkNotNull(canvasRef.current).clientWidth / 2),
-            Math.round(checkNotNull(canvasRef.current).clientHeight / 2),
-            1,
-            1
-          ).data;
-          setColorFromData(data);
-        };
-        img.src = imageDataUrl;
+      if (imageDataUrl != null) {
+        img.current.src = imageDataUrl;
+        img.current.onload = () => setLoaded(true);
       }
-    }, [canvasRef, imageDataUrl]);
+    });
 
-    const onClickCanvas = useCallback(
-      (e: React.MouseEvent<HTMLCanvasElement>) => {
-        const rect = (e.target as any).getBoundingClientRect();
-        const x = Math.round(e.clientX - rect.left);
-        const y = Math.round(e.clientY - rect.top);
-        const data = checkNotNull(
-          canvasRef.current?.getContext("2d")
-        ).getImageData(x, y, 1, 1).data;
-        setColorFromData(data);
+    useEffect(() => {
+      const canvas = canvasRef.current;
+      if (canvas != null && loaded) {
+        const ctx = checkNotNull(canvas.getContext("2d"));
+        ctx.fillStyle = "black";
+        const hRatio = canvas.width / img.current.width;
+        const vRatio = canvas.height / img.current.height;
+        const ratio = Math.min(hRatio, vRatio);
+        const centerShift_x = (canvas.width - img.current.width * ratio) / 2;
+        const centerShift_y = (canvas.height - img.current.height * ratio) / 2;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(
+          img.current,
+          xOffset,
+          yOffset,
+          img.current.width / scale,
+          img.current.height / scale,
+          centerShift_x,
+          centerShift_y,
+          img.current.width * ratio,
+          img.current.height * ratio
+        );
+        const data = ctx.getImageData(
+          Math.round(canvas.width / 2),
+          Math.round(canvas.height / 2),
+          1,
+          1
+        ).data;
+        const color = dataToColor(data);
+        setColor(color);
+        ctx.strokeStyle = getForegroundColor(color);
+        ctx.arc(canvas.width / 2, canvas.height / 2, 10, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+    }, [canvasRef, imageDataUrl, setColor, scale, xOffset, yOffset, loaded]);
+
+    const [canvasDifRef, { width, height }] = useElementSize();
+
+    const bind = useGesture(
+      {
+        onDrag: ({ offset: [xOffset, yOffset] }) => {
+          setOffset({ xOffset, yOffset });
+        },
+        onPinch: ({ offset: [scale] }) => {
+          setScale(scale);
+        },
       },
-      []
+      {
+        drag: {
+          bounds: {
+            top: -img.current.height / scale / 2,
+            left: -img.current.width / scale / 2,
+            bottom: img.current.height - img.current.height / scale / 2,
+            right: img.current.width - img.current.width / scale / 2,
+          },
+        },
+      }
     );
 
     return imageDataUrl == null ? (
       <Navigate to="/" replace={true} />
     ) : (
-      <div className="h-full w-full flex">
-        <div className="flex flex-col flex-1 gap-5">
-          <div className="flex-1 flex items-center justify-center">
-            <canvas onClick={onClickCanvas} ref={canvasRef} />
+      <div className="flex-1 flex">
+        <div className="flex flex-col flex-1">
+          <div className="flex-1 flex justify-center">
+            <div className="flex-1" ref={canvasDifRef}>
+              <canvas
+                className="flex-1 touch-none"
+                ref={canvasRef}
+                height={height}
+                width={width}
+                {...bind()}
+              />
+            </div>
           </div>
           <div
             style={{
               backgroundColor: color,
               color: getForegroundColor(color),
             }}
-            className="p-5 flex flex-col gap-3"
+            className="py-6 px-2 flex flex-col gap-4"
           >
             <button
-              className="flex bg-primary p-6 rounded-full text-white justify-center items-center gap-2"
+              className="bg-primary flex py-2 rounded-full text-white justify-center items-center gap-3.5 font-medium"
               onClick={chooseColor}
             >
               <div>Shop for this color</div>
               <ShoppingBagIcon className="block h-6" />
             </button>
-            <div className="flex justify-center">{color}</div>
-            <div className="flex justify-center">
+            <div className="flex justify-center uppercase leading-none text-sm font-medium">
               {colorNamer(color).pantone[0].name}
             </div>
+            <div className="flex justify-center leading-none">{color}</div>
           </div>
         </div>
       </div>
@@ -106,4 +151,10 @@ function getForegroundColor(bg: string) {
   } else {
     return "#ffffff";
   }
+}
+
+function dataToColor(data: Uint8ClampedArray) {
+  return `#${`0${data[0].toString(16)}`.slice(-2)}${`0${data[1].toString(
+    16
+  )}`.slice(-2)}${`0${data[2].toString(16)}`.slice(-2)}`;
 }

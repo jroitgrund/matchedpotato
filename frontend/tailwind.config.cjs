@@ -5,6 +5,10 @@ module.exports = {
     extend: {
       colors: {
         primary: "#8370FF",
+        muted: "#6C6C6C",
+      },
+      lineHeight: {
+        3.5: "0.875rem",
       },
     },
   },

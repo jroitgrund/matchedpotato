@@ -1,8 +1,9 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { ItemsResult } from "./client";
-import { useInterval } from "usehooks-ts";
 import { useParams } from "react-router-dom";
+import { useInterval } from "usehooks-ts";
+
 import { api } from "./api";
+import { ItemsResult } from "./client";
 
 export const Shop: React.FC<Record<string, never>> = React.memo(
   function Shop() {
@@ -18,7 +19,7 @@ export const Shop: React.FC<Record<string, never>> = React.memo(
       (async () => {
         setRequestId(
           await (
-            await api.searchApiSearchColorGet({ color: color })
+            await api.searchApiSearchPost({ searchRequest: { color: color } })
           ).requestId
         );
       })();
@@ -36,16 +37,24 @@ export const Shop: React.FC<Record<string, never>> = React.memo(
     );
 
     return (
-      <div className="h-full w-full flex-col p-5">
+      <div className="flex-1 flex flex-col px-1.5">
         <div className="flex flex-wrap items-start">
           {results.results.map(({ url, thumbnailUrl }) => (
-            <div className="py-0.5 px-0.5 w-1/2 aspect-[2/3]" key={url}>
-              <a className="block w-full h-full" href={url}>
-                <img
-                  src={thumbnailUrl}
-                  className="w-full h-full object-cover"
-                />
-              </a>
+            <div className="w-1/2 p-0.5 flex flex-col" key={url}>
+              <div className="flex">
+                <div className="flex-1 aspect-[2/3]">
+                  <a className="block w-full h-full" href={url}>
+                    <img
+                      src={thumbnailUrl}
+                      className="w-full h-full object-cover"
+                    />
+                  </a>
+                </div>
+              </div>
+              <div className="leading-3.5 text-sm mt-2">20,00€</div>
+              <div className="leading-3.5 text-muted text-xs mt-1 mb-1.5">
+                Small
+              </div>
             </div>
           ))}
         </div>

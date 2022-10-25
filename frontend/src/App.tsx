@@ -1,12 +1,14 @@
+import React from "react";
 import {
   createBrowserRouter,
-  RouterProvider,
   Navigate,
+  RouterProvider,
 } from "react-router-dom";
-import { Shop } from "./Shop";
-import { PixelChooser } from "./PixelChooser";
+
+import { Logo } from "./Logo";
 import { Onboarding } from "./Onboarding";
-import React from "react";
+import { PixelChooser } from "./PixelChooser";
+import { Shop } from "./Shop";
 
 const router = createBrowserRouter([
   {
@@ -28,7 +30,14 @@ const router = createBrowserRouter([
 ]);
 
 const App: React.FC<Record<string, never>> = React.memo(function App() {
-  return <RouterProvider router={router} />;
+  return (
+    <div className="flex-1 flex flex-col">
+      <div className="flex self-center w-1/3 justify-around p-5">
+        <Logo />
+      </div>
+      <RouterProvider router={router} />
+    </div>
+  );
 });
 
 export default App;

@@ -1,15 +1,17 @@
 import logging
 import os
+import re
 from datetime import datetime
-from typing import Any
+from enum import Enum, auto
+from typing import Any, Optional
 from uuid import UUID, uuid4
 
 import structlog
 import uvicorn
-from fastapi import APIRouter, BackgroundTasks, FastAPI, Path
+from fastapi import APIRouter, BackgroundTasks, FastAPI
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
+from pydantic import BaseModel, ConstrainedStr
 
 from matchedpotato.matcher import get_matching_vinted_results
 from matchedpotato.vinted import VintedResult
@@ -55,6 +57,40 @@ class ItemsResult(BaseModel):
     results: list[VintedResult]
 
 
+class Gender(Enum):
+    WOMEN = auto()
+    MEN = auto()
+
+
+class Size(Enum):
+    XXXS = auto()
+    XXS = auto()
+    XS = auto()
+    S = auto()
+    M = auto()
+    L = auto()
+    XL = auto()
+    XXL = auto()
+    XXXL = auto()
+    FIVEXL = auto()
+    SIXXL = auto()
+    SEVENXL = auto()
+    EIGHTXL = auto()
+    NINEXL = auto()
+
+
+class Color(ConstrainedStr):
+    regex = re.compile(r"^\#[a-fA-F0-9]{6}$")
+
+
+class SearchRequest(BaseModel):
+    color: ConstrainedStr
+    gender: set[Gender] = set(Gender)
+    size: set[Size] = set(Size)
+    priceMin: Optional[int]
+    priceMax: Optional[int]
+
+
 log = structlog.stdlib.get_logger()
 app = FastAPI()
 api = APIRouter(prefix="/api")
@@ -62,18 +98,18 @@ results: dict[UUID, ItemsResult] = {}
 pings: dict[UUID, datetime] = {}
 
 
-@api.get(
-    "/search/{color}",
+@api.post(
+    "/search",
     response_model=RequestIdResult,
 )
 async def search(
+    searchRequest: SearchRequest,
     background_tasks: BackgroundTasks,
-    color: str = Path(regex=r"^\#[a-fA-F0-9]{6}$"),
 ) -> RequestIdResult:
     request_id = uuid4()
     results[request_id] = ItemsResult(results=[], done=False)
     pings[request_id] = datetime.now()
-    background_tasks.add_task(poll_vinted, request_id, color)
+    background_tasks.add_task(poll_vinted, request_id, searchRequest.color)
     return RequestIdResult(request_id=request_id)
 
 
